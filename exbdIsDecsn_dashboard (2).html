@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DART 교환사채권 발행결정(exbdIsDecsn) 뷰어</title>
+<style>
+  :root { --bg:#0b1020; --card:#151a2b; --text:#e8eefc; --muted:#9fb3d9; --accent:#7aa2ff; --ok:#2ecc71; --warn:#f39c12; --err:#e74c3c; }
+  html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Pretendard,sans-serif;color:var(--text);background:linear-gradient(180deg,#0a0f1f,#0e1430)}
+  .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid #232b46;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:18px}
+  h1{margin:0 0 8px;font-size:22px;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .grid .span2{grid-column:span 2}
+  .grid .span3{grid-column:span 3}
+  .grid .span6{grid-column:span 6}
+  label{font-size:12px;color:var(--muted);display:block;margin:4px 0}
+  input,button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a3356;background:#0f1430;color:var(--text)}
+  button{cursor:pointer;background:linear-gradient(180deg,#24346b,#1f2a55);border:1px solid #2a3a78}
+  button:hover{filter:brightness(1.08)}
+  .row{display:flex;gap:8px;align-items:center}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .status{font-size:12px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{border-bottom:1px solid #273156;padding:10px 8px;font-size:13px;vertical-align:top}
+  th{position:sticky;top:0;background:#0f1634;text-align:left}
+  .link{color:var(--accent);text-decoration:none}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#162148;border:1px solid #2a3a78;color:#a8b8ea;font-size:12px}
+  .muted{color:#a1aed1}
+  .right{text-align:right}
+  .foot{margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+  .warn{color:var(--warn)}
+  .err{color:var(--err)}
+  .ok{color:var(--ok)}
+  .help{font-size:12px;color:#93a7d6;margin-top:4px}
+  .small{font-size:12px}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;background:#0d1330;border:1px solid #2a3356;padding:2px 6px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>교환사채권 발행결정 (exbdIsDecsn) 실시간 조회</h1>
+    <div class="sub">OPENDART Open API · 입력 후 “조회”를 누르면 표로 출력됩니다. (엔드포인트: <span class="kbd">/api/exbdIsDecsn.json</span>)</div>
+
+    <div class="grid">
+      <div class="span3">
+        <label>API Key (crtfc_key)</label>
+        <input id="apiKey" value="cb3600319cbd53a075b95b93b7af7e8d5d5cce61" />
+        <div class="help">키는 네 브라우저에서만 사용됨. 보안상 공유 금지.</div>
+      </div>
+      <div>
+        <label>회사 고유번호 (corp_code, 8자리)</label>
+        <input id="corpCode" placeholder="예: 00126380" />
+        <div class="help">회사명을 모를 땐 아래 ‘회사코드 찾기’ 사용.</div>
+      </div>
+      <div>
+        <label>시작일 (bgn_de)</label>
+        <input id="bgnDe" type="date" />
+      </div>
+      <div>
+        <label>종료일 (end_de)</label>
+        <input id="endDe" type="date" />
+      </div>
+      <div class="span2">
+        <label>&nbsp;</label>
+        <div class="row">
+          <button id="btnFetch">조회</button>
+          <button id="btnCsv">CSV 다운로드</button>
+          <button id="btnDemo">데모 데이터</button>
+        </div>
+      </div>
+
+      <div class="span6">
+        <details>
+          <summary class="pill">회사코드 찾기(옵션)</summary>
+          <div class="note">회사명으로 <span class="kbd">corpCode.xml</span>을 검색해 <span class="kbd">corp_code</span>를 자동 채우는 도구입니다.</div>
+          <div class="row" style="gap:6px;margin:6px 0 8px">
+            <input id="corpNameQ" placeholder="회사명 입력 (예: 삼성전자)" />
+            <button id="btnFind">회사코드 찾기</button>
+          </div>
+          <div id="findResult" class="small muted"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <span class="status" id="status">대기 중…</span>
+    </div>
+
+    <div class="card" style="background:#0e1430;border-color:#24305a">
+      <div style="overflow:auto; max-height:60vh;">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>접수번호<br/><span class="muted small">rcept_no</span></th>
+              <th>회사명<br/><span class="muted small">corp_name</span></th>
+              <th>사채종류/회차<br/><span class="muted small">bd_tm / bd_knd</span></th>
+              <th>권면총액(원)<br/><span class="muted small">bd_fta</span></th>
+              <th>표면/만기이자율(%)<br/><span class="muted small">bd_intr_ex / bd_intr_sf</span></th>
+              <th>만기일<br/><span class="muted small">bd_mtd</span></th>
+              <th>교환가/비율<br/><span class="muted small">ex_prc / ex_rt</span></th>
+              <th>결정일<br/><span class="muted small">bddd</span></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="foot">
+        <div class="small muted">※ 접수번호 클릭 시 DART 공시뷰어 새탭으로 열립니다.</div>
+        <div id="count" class="small"></div>
+      </div>
+    </div>
+
+    <div class="help">응답 코드 예시 — <span class="ok">000:정상</span> · <span class="warn">013:데이터 없음</span> · <span class="err">020:요청제한</span> 등.</div>
+  </div>
+</div>
+
+<script>
+const $ = sel => document.querySelector(sel);
+const API_BASE = "https://opendart.fss.or.kr/api";
+
+(function initDefaults(){
+  const t = new Date();
+  const yyyy = t.getFullYear();
+  $("#bgnDe").value = `${yyyy}-01-01`;
+  $("#endDe").value = t.toISOString().slice(0,10);
+})();
+
+function yyyymmdd(dstr){ return dstr ? dstr.replaceAll("-","") : ""; }
+function dartViewerUrl(rcpNo){ return `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${encodeURIComponent(rcpNo)}`; }
+function setStatus(msg, cls=""){ const el=$("#status"); el.textContent=msg; el.className="status "+cls; }
+function sanitize(v){ return (v===undefined||v===null)? "": String(v); }
+
+function toCsv(rows){
+  if(!rows?.length) return "";
+  const keys = Object.keys(rows[0]);
+  const esc = s => `"${String(s).replaceAll('"','""')}"`;
+  const header = keys.map(esc).join(",");
+  const body = rows.map(r=>keys.map(k=>esc(r[k]??"")).join(",")).join("\\n");
+  return header + "\\n" + body;
+}
+
+async function fetchJson(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+async function findCorpCode(){
+  const key = $("#apiKey").value.trim();
+  const q = $("#corpNameQ").value.trim();
+  if(!key || !q){ $("#findResult").textContent = "API Key와 회사명을 입력하세요."; return; }
+  $("#findResult").textContent = "검색 중… (corpCode.xml)";
+  try{
+    const url = `${API_BASE}/corpCode.xml?crtfc_key=${encodeURIComponent(key)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const re = /<list>\\s*<corp_code>(\\d{8})<\\/corp_code>\\s*<corp_name>([^<]+)<\\/corp_name>\\s*<stock_code>([^<]*)<\\/stock_code>/g;
+    const hits = [];
+    let m;
+    while((m = re.exec(text))!==null){
+      const code = m[1], name = m[2], stock = m[3];
+      if(name.includes(q)){
+        hits.push({corp_code:code, corp_name:name, stock_code:stock});
+        if(hits.length>=5) break;
+      }
+    }
+    if(!hits.length){ $("#findResult").textContent = "일치 결과 없음."; return; }
+    const top = hits[0];
+    $("#corpCode").value = top.corp_code;
+    $("#findResult").innerHTML = `가장 유사: <b>${top.corp_name}</b> (corp_code: <b>${top.corp_code}</b>${top.stock_code?`, 종목:${top.stock_code}`:""})`;
+  }catch(e){
+    $("#findResult").textContent = "검색 실패: " + e.message + " (CORS 정책으로 브라우저에서 막힐 수 있음)";
+  }
+}
+
+async function fetchExbd(){
+  const key = $("#apiKey").value.trim();
+  const corp = $("#corpCode").value.trim();
+  const bgn = yyyymmdd($("#bgnDe").value);
+  const end = yyyymmdd($("#endDe").value);
+  if(!key || !corp || !bgn || !end){
+    setStatus("필수 입력값을 확인하세요 (key/corp_code/bgn_de/end_de).","warn"); return;
+  }
+  const url = `${API_BASE}/exbdIsDecsn.json?crtfc_key=${encodeURIComponent(key)}&corp_code=${encodeURIComponent(corp)}&bgn_de=${encodeURIComponent(bgn)}&end_de=${encodeURIComponent(end)}`;
+  setStatus("조회 중…");
+  $("#tbody").innerHTML = "";
+  $("#count").textContent = "";
+  try{
+    const data = await fetchJson(url);
+    renderList(data);
+  }catch(e){
+    setStatus("요청 실패: " + e.message + " — 브라우저 CORS로 막히면 프록시(서버사이드) 사용 필요.","err");
+  }
+}
+
+function renderList(data){
+  const status = data?.status || data?.result?.status;
+  const message = data?.message || data?.result?.message;
+  if(status && status!=="000"){
+    setStatus(`오류(${status}): ${message || "상세 메시지 없음"}`, status==="013"?"warn":"err"); return;
+  }
+  const list = data?.list || [];
+  if(!list.length){ setStatus("결과 0건 (status 000).","warn"); return; }
+  const tbody = $("#tbody");
+  const rowsForCsv = [];
+  for(const it of list){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><a class="link" href="${dartViewerUrl(it.rcept_no)}" target="_blank" rel="noopener">${sanitize(it.rcept_no||"")}</a></td>
+      <td>${sanitize(it.corp_name)}</td>
+      <td>${sanitize(it.bd_tm)}<br/><span class="muted small">${sanitize(it.bd_knd)}</span></td>
+      <td class="right">${sanitize(it.bd_fta)}</td>
+      <td class="right">${sanitize(it.bd_intr_ex)} / ${sanitize(it.bd_intr_sf)}</td>
+      <td>${sanitize(it.bd_mtd)}</td>
+      <td class="right">${sanitize(it.ex_prc)}<br/><span class="muted small">${sanitize(it.ex_rt)}</span></td>
+      <td>${sanitize(it.bddd)}</td>
+    `;
+    tbody.appendChild(tr);
+    rowsForCsv.push(it);
+  }
+  $("#count").textContent = \`표시: \${list.length.toLocaleString()}건\`;
+  setStatus("완료 ✅","ok");
+  window.__lastCsv = toCsv(rowsForCsv);
+}
+
+function downloadCsv(){
+  const csv = window.__lastCsv || "";
+  if(!csv){ setStatus("CSV로 저장할 결과가 없습니다.","warn"); return; }
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "exbdIsDecsn_result.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function demoData(){
+  const demo = {
+    status:"000",
+    message:"정상",
+    list:[
+      { rcept_no:"20251017000123", corp_name:"데모전자", bd_tm:"23회차", bd_knd:"교환사채", bd_fta:"300000000000", bd_intr_ex:"2.0", bd_intr_sf:"2.3", bd_mtd:"2030-10-17", ex_prc:"65000", ex_rt:"100", bddd:"2025-10-17" },
+      { rcept_no:"20250405000988", corp_name:"데모전자", bd_tm:"22회차", bd_knd:"교환사채", bd_fta:"500000000000", bd_intr_ex:"1.8", bd_intr_sf:"2.0", bd_mtd:"2030-04-05", ex_prc:"72000", ex_rt:"100", bddd:"2025-04-05" },
+      { rcept_no:"20250112000645", corp_name:"데모전자", bd_tm:"21회차", bd_knd:"교환사채", bd_fta:"200000000000", bd_intr_ex:"2.5", bd_intr_sf:"2.7", bd_mtd:"2030-01-12", ex_prc:"70000", ex_rt:"100", bddd:"2025-01-12" }
+    ]
+  };
+  $("#tbody").innerHTML = "";
+  renderList(demo);
+}
+
+$("#btnFetch").addEventListener("click", fetchExbd);
+$("#btnCsv").addEventListener("click", downloadCsv);
+$("#btnFind").addEventListener("click", findCorpCode);
+$("#btnDemo").addEventListener("click", demoData);
+</script>
+</body>
+</html>
