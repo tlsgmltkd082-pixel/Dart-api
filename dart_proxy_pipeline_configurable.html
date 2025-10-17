@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DART 파이프라인 (프록시 베이스 설정 가능)</title>
+<style>
+  :root { --bg:#0b1020; --card:#151a2b; --text:#e8eefc; --muted:#9fb3d9; --accent:#7aa2ff; --ok:#2ecc71; --warn:#f39c12; --err:#e74c3c; }
+  html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Pretendard,sans-serif;color:var(--text);background:linear-gradient(180deg,#0a0f1f,#0e1430)}
+  .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid #232b46;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:18px;margin-bottom:16px}
+  h1{margin:0 0 8px;font-size:22px;letter-spacing:.2px}
+  h2{margin:0 0 8px;font-size:18px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .grid .span2{grid-column:span 2}
+  .grid .span3{grid-column:span 3}
+  .grid .span6{grid-column:span 6}
+  label{font-size:12px;color:var(--muted);display:block;margin:4px 0}
+  input,button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a3356;background:#0f1430;color:var(--text)}
+  button{cursor:pointer;background:linear-gradient(180deg,#24346b,#1f2a55);border:1px solid #2a3a78}
+  button:hover{filter:brightness(1.08)}
+  .row{display:flex;gap:8px;align-items:center}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .status{font-size:12px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{border-bottom:1px solid #273156;padding:10px 8px;font-size:13px;vertical-align:top}
+  th{position:sticky;top:0;background:#0f1634;text-align:left}
+  .link{color:var(--accent);text-decoration:none}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#162148;border:1px solid #2a3a78;color:#a8b8ea;font-size:12px}
+  .muted{color:#a1aed1}
+  .right{text-align:right}
+  .foot{margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+  .warn{color:var(--warn)}
+  .err{color:var(--err)}
+  .ok{color:var(--ok)}
+  .help{font-size:12px;color:#93a7d6;margin-top:4px}
+  .small{font-size:12px}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;background:#0d1330;border:1px solid #2a3356;padding:2px 6px;border-radius:6px}
+  .badge{display:inline-block;padding:2px 6px;border-radius:6px;border:1px solid #2a3a78;background:#11183a;font-size:12px;color:#a8b8ea}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>DART 파이프라인 (프록시 베이스 설정)</h1>
+    <div class="sub">브라우저 → <b>프록시</b> → DART. 여기서 프록시 베이스 URL을 지정할 수 있어요. (예: <span class="kbd">/api</span> 또는 <span class="kbd">https://your-proxy.example.com/api</span>)</div>
+
+    <div class="grid">
+      <div class="span3">
+        <label>프록시 베이스 URL</label>
+        <input id="proxyBase" value="/api" />
+        <div class="help">동일 도메인에 프록시가 있으면 <span class="kbd">/api</span>, 별도 도메인이면 전체 URL을 입력</div>
+      </div>
+      <div>
+        <label>시작일 (bgn_de)</label>
+        <input id="bgnDe" type="date" />
+      </div>
+      <div>
+        <label>종료일 (end_de)</label>
+        <input id="endDe" type="date" />
+      </div>
+      <div>
+        <label>page_count (list.json)</label>
+        <input id="pageCount" type="number" min="1" max="100" value="100" />
+      </div>
+      <div>
+        <label>최대 페이지 (안전장치)</label>
+        <input id="maxPages" type="number" min="1" max="50" value="5" />
+      </div>
+      <div class="span2">
+        <label>&nbsp;</label>
+        <div class="row">
+          <button id="btnRun">조회</button>
+          <button id="btnCsv">CSV 다운로드</button>
+          <button id="btnDemo">데모</button>
+          <button id="btnHealth">프록시 상태</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <span class="status" id="status">대기 중…</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>① list.json 결과: 공시 이력 보유 기업 목록</h2>
+    <div class="small muted">기간 내 공시가 1건 이상 있는 기업들(중복 제거)</div>
+    <div id="companiesCount" class="small" style="margin-top:6px"></div>
+    <div style="overflow:auto; max-height:30vh;">
+      <table>
+        <thead>
+          <tr>
+            <th>corp_code</th>
+            <th>corp_name</th>
+            <th>첫 공시일</th>
+            <th>마지막 공시일</th>
+            <th>건수</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyCompanies"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>② exbdIsDecsn.json 결과: 교환사채권 발행결정</h2>
+    <div class="small muted">①에서 수집된 기업별로 일괄 조회한 결과</div>
+    <div id="exbdCount" class="small" style="margin-top:6px"></div>
+    <div style="overflow:auto; max-height:40vh;">
+      <table>
+        <thead>
+          <tr>
+            <th>접수번호</th>
+            <th>corp_code</th>
+            <th>회사명</th>
+            <th>사채종류/회차</th>
+            <th>권면총액(원)</th>
+            <th>표면/만기이자율(%)</th>
+            <th>만기일</th>
+            <th>교환가/비율</th>
+            <th>결정일</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyExbd"></tbody>
+      </table>
+    </div>
+    <div class="foot">
+      <div class="small muted">※ 접수번호 클릭 시 DART 공시뷰어 새 탭</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = sel => document.querySelector(sel);
+
+(function initDefaults(){
+  const t = new Date();
+  const yyyy = t.getFullYear();
+  $("#bgnDe").value = `${yyyy}-01-01`;
+  $("#endDe").value = t.toISOString().slice(0,10);
+})();
+
+function yyyymmdd(dstr){ return dstr ? dstr.replaceAll("-","") : ""; }
+function setStatus(msg, cls=""){ const el=$("#status"); el.textContent=msg; el.className="status "+cls; }
+function esc(s){ return (s===undefined||s===null) ? "" : String(s); }
+function dartViewerUrl(rcpNo){ return `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${encodeURIComponent(rcpNo)}`; }
+function toCsv(rows){
+  if(!rows?.length) return "";
+  const keys = Object.keys(rows[0]);
+  const escCsv = s => `"${String(s).replaceAll('"','""')}"`;
+  const header = keys.map(escCsv).join(",");
+  const body = rows.map(r=>keys.map(k=>escCsv(r[k]??"")).join(",")).join("\\n");
+  return header + "\\n" + body;
+}
+
+function base(){
+  let b = $("#proxyBase").value.trim();
+  if(!b) b = "/api";
+  if(b.endsWith("/")) b = b.slice(0,-1);
+  return b;
+}
+
+// 제한 동시성 실행기
+async function mapPool(items, worker, limit=4){
+  const ret = []; let idx = 0;
+  const run = async () => {
+    while(idx < items.length){
+      const i = idx++; 
+      ret[i] = await worker(items[i], i);
+    }
+  };
+  const runners = Array.from({length: Math.min(limit, items.length)}, run);
+  await Promise.all(runners);
+  return ret;
+}
+
+async function checkHealth(){
+  setStatus("프록시 상태 확인 중…");
+  try{
+    const url = `${base()}/health`;
+    const r = await fetch(url, { method:"GET" });
+    const txt = await r.text();
+    setStatus(`프록시 응답: HTTP ${r.status} / ${txt.slice(0,120)}…`, r.ok ? "ok":"warn");
+  }catch(e){
+    setStatus("프록시 연결 실패: " + e.message, "err");
+  }
+}
+
+// ① list.json: 공시 이력 보유 기업
+async function fetchCompanies(bgn, end, pageCount=100, maxPages=5){
+  const uniq = new Map(); // corp_code -> { corp_name, minDt, maxDt, cnt }
+  for(let page=1; page<=maxPages; page++){
+    const url = `${base()}/list?bgn_de=${encodeURIComponent(bgn)}&end_de=${encodeURIComponent(end)}&page_no=${page}&page_count=${pageCount}`;
+    setStatus(`list.json 수집 중… 페이지 ${page}/${maxPages}`);
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`list.json HTTP ${res.status}`);
+    const data = await res.json();
+    const status = data?.status;
+    if(status && status!=="000"){
+      if(status==="013"){ break; } // 데이터 없음
+      throw new Error(`list.json 오류(${status}): ${data?.message||""}`);
+    }
+    const lst = data?.list || [];
+    if(!lst.length) break;
+    for(const it of lst){
+      const code = it.corp_code, name = it.corp_name, dt = it.rcept_dt;
+      if(!code) continue;
+      const prev = uniq.get(code) || { corp_name:name, minDt:dt, maxDt:dt, cnt:0 };
+      prev.corp_name = name || prev.corp_name;
+      prev.minDt = (!prev.minDt || dt < prev.minDt) ? dt : prev.minDt;
+      prev.maxDt = (!prev.maxDt || dt > prev.maxDt) ? dt : prev.maxDt;
+      prev.cnt += 1;
+      uniq.set(code, prev);
+    }
+    await new Promise(r=>setTimeout(r, 200)); // 백오프
+  }
+  return uniq;
+}
+
+function renderCompanies(uniqMap){
+  const tbody = $("#tbodyCompanies");
+  tbody.innerHTML = "";
+  const rows = [];
+  for(const [code, info] of uniqMap.entries()){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${esc(code)}</td>
+      <td>${esc(info.corp_name)}</td>
+      <td>${esc(info.minDt)}</td>
+      <td>${esc(info.maxDt)}</td>
+      <td class="right">${esc(info.cnt)}</td>
+    `;
+    tbody.appendChild(tr);
+    rows.push({corp_code:code, corp_name:info.corp_name, first_dt:info.minDt, last_dt:info.maxDt, count:info.cnt});
+  }
+  $("#companiesCount").textContent = `기업 수: ${rows.length.toLocaleString()}개 (중복제거)`;
+  return rows;
+}
+
+// ② exbdIsDecsn.json: 기업별 일괄 조회
+async function fetchExbdForCompanies(bgn, end, codes){
+  const results = await mapPool(codes, async (code, idx)=>{
+    setStatus(`exbdIsDecsn 조회 중… (${idx+1}/${codes.length}) corp_code=${code}`);
+    const url = `${base()}/exbdIsDecsn?corp_code=${encodeURIComponent(code)}&bgn_de=${encodeURIComponent(bgn)}&end_de=${encodeURIComponent(end)}`;
+    try{
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const status = data?.status;
+      if(status && status!=="000"){ return []; } // 013 등은 무시
+      return data?.list || [];
+    }catch(e){
+      console.error("exbd 호출 실패", code, e);
+      return [];
+    }finally{
+      await new Promise(r=>setTimeout(r, 200));
+    }
+  }, 4);
+  return results.flat();
+}
+
+function renderExbd(list){
+  const tbody = $("#tbodyExbd");
+  tbody.innerHTML = "";
+  const rowsForCsv = [];
+  for(const it of list){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><a class="link" href="${dartViewerUrl(it.rcept_no)}" target="_blank" rel="noopener">${esc(it.rcept_no||"")}</a></td>
+      <td>${esc(it.corp_code||"")}</td>
+      <td>${esc(it.corp_name||"")}</td>
+      <td>${esc(it.bd_tm||"")}<br/><span class="muted small">${esc(it.bd_knd||"")}</span></td>
+      <td class="right">${esc(it.bd_fta||"")}</td>
+      <td class="right">${esc(it.bd_intr_ex||"")} / ${esc(it.bd_intr_sf||"")}</td>
+      <td>${esc(it.bd_mtd||"")}</td>
+      <td class="right">${esc(it.ex_prc||"")}<br/><span class="muted small">${esc(it.ex_rt||"")}</span></td>
+      <td>${esc(it.bddd||"")}</td>
+    `;
+    tbody.appendChild(tr);
+    rowsForCsv.push({
+      rcept_no: it.rcept_no||"",
+      corp_code: it.corp_code||"",
+      corp_name: it.corp_name||"",
+      bd_tm: it.bd_tm||"",
+      bd_knd: it.bd_knd||"",
+      bd_fta: it.bd_fta||"",
+      bd_intr_ex: it.bd_intr_ex||"",
+      bd_intr_sf: it.bd_intr_sf||"",
+      bd_mtd: it.bd_mtd||"",
+      ex_prc: it.ex_prc||"",
+      ex_rt: it.ex_rt||"",
+      bddd: it.bddd||""
+    });
+  }
+  $("#exbdCount").textContent = `교환사채 발행결정 공시: ${rowsForCsv.length.toLocaleString()}건`;
+  window.__csvExbd = toCsv(rowsForCsv);
+}
+
+// 메인 실행
+async function runPipeline(){
+  const bgn = yyyymmdd($("#bgnDe").value);
+  const end = yyyymmdd($("#endDe").value);
+  const pageCount = Math.max(1, Math.min(100, parseInt($("#pageCount").value||"100",10)));
+  const maxPages = Math.max(1, Math.min(50, parseInt($("#maxPages").value||"5",10)));
+  if(!bgn || !end){ setStatus("시작일/종료일을 확인하세요.","warn"); return; }
+  try{
+    setStatus("① list.json 수집 시작");
+    const uniq = await fetchCompanies(bgn, end, pageCount, maxPages);
+    const companiesCsvRows = renderCompanies(uniq);
+    window.__csvCompanies = toCsv(companiesCsvRows);
+
+    const codes = Array.from(uniq.keys());
+    if(!codes.length){ setStatus("기간 내 공시 이력이 있는 기업이 없습니다 (list.json 0건).","warn"); return; }
+
+    setStatus("② exbdIsDecsn 일괄 조회 시작");
+    const exbdList = await fetchExbdForCompanies(bgn, end, codes);
+    renderExbd(exbdList);
+
+    setStatus("완료 ✅","ok");
+  }catch(e){
+    setStatus("실행 실패: " + e.message, "err");
+  }
+}
+
+function downloadCsv(){
+  const csvEx = window.__csvExbd || "";
+  const csvCo = window.__csvCompanies || "";
+  let csv = csvEx || csvCo;
+  if(!csv){ setStatus("CSV로 저장할 데이터가 없습니다.","warn"); return; }
+  const name = csvEx ? "exbdIsDecsn_result.csv" : "companies_from_list.csv";
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// 데모 UI
+async function demo(){
+  setStatus("데모 데이터 로딩…");
+  const uniq = new Map(Object.entries({
+    "00123456": {corp_name:"데모전자", minDt:"20250112", maxDt:"20251017", cnt:12},
+    "00111111": {corp_name:"데모화학", minDt:"20250402", maxDt:"20250930", cnt:8},
+    "00122222": {corp_name:"데모금융", minDt:"20250301", maxDt:"20250815", cnt:5}
+  }));
+  const companiesCsvRows = renderCompanies(uniq);
+  window.__csvCompanies = toCsv(companiesCsvRows);
+
+  const demoEx = [
+    { rcept_no:"20251017000123", corp_code:"00123456", corp_name:"데모전자", bd_tm:"23회차", bd_knd:"교환사채", bd_fta:"300000000000", bd_intr_ex:"2.0", bd_intr_sf:"2.3", bd_mtd:"2030-10-17", ex_prc:"65000", ex_rt:"100", bddd:"2025-10-17" },
+    { rcept_no:"20250405000988", corp_code:"00123456", corp_name:"데모전자", bd_tm:"22회차", bd_knd:"교환사채", bd_fta:"500000000000", bd_intr_ex:"1.8", bd_intr_sf:"2.0", bd_mtd:"2030-04-05", ex_prc:"72000", ex_rt:"100", bddd:"2025-04-05" },
+    { rcept_no:"20250112000645", corp_code:"00111111", corp_name:"데모화학", bd_tm:"7회차",  bd_knd:"교환사채", bd_fta:"150000000000", bd_intr_ex:"2.2", bd_intr_sf:"2.6", bd_mtd:"2030-01-12", ex_prc:"41000", ex_rt:"100", bddd:"2025-01-12" }
+  ];
+  renderExbd(demoEx);
+  window.__csvExbd = toCsv(demoEx);
+  setStatus("데모 완료 ✅","ok");
+}
+
+$("#btnRun").addEventListener("click", runPipeline);
+$("#btnCsv").addEventListener("click", downloadCsv);
+$("#btnDemo").addEventListener("click", demo);
+$("#btnHealth").addEventListener("click", checkHealth);
+</script>
+</body>
+</html>
